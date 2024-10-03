@@ -1,0 +1,69 @@
+networks:
+    local:
+        driver: bridge
+    certauth:
+        external: true
+        name: certauth_network
+    www:
+        external: true
+        name: local_net
+
+volumes:
+    smallstep:
+        driver: bridge 
+secrets:
+    password:
+        file: $CERTAUTH_SECRETS_PASSWORD
+    provisioner_password:
+        file: $CERTAUTH_SECRETS_PROVISIONER
+services:
+    certwatch:
+        image: proxymurder/smallstep:latest
+        environment:
+            STEP_INIT_DNS: shared
+            STEP_CA_URL: https://certauth:5739
+            STEP_FINGERPRINT: $CERTWATCH_STEP_FINGERPRINT
+            STEP_KID: $CERTWATCH_STEP_KID 
+            STEP_PASSWORD_FILE: /run/secrets/password
+            STEP_PROVISIONER_PASSWORD_FILE: /run/secrets/provisioner_password
+            STEP_ROOT: /var/local/step/root_ca.crt
+        volumes:
+            - smallstep:/var/local/step
+        secrets:
+            - password
+            - provisioner_password
+        networks:
+            - certauth
+        restart: unless-stopped
+    userdir:
+        image: dgraziotin/nginx-webdav-nononsense
+        volumes:
+            - /home/${USER}:/data
+        environment:
+            PUID: $UID
+            PGID: $UID
+            WEBDAV_USERNAME: $USERDIR_WEBDAV_USERNAME
+            WEBDAV_PASSWORD: $USERDIR_WEBDAV_PASSWORD
+            SERVER_NAMES: localhost
+            TIMEOUTS_S: 1200
+            CLIENT_MAX_BODY_SIZE: 1G
+        networks:
+            - local
+        restart: unless-stopped
+    www:
+        image: proxymurder/servers:latest
+        environment:
+            SERVER_YAML: /etc/nginx/yaml/proxy.yaml
+            SERVER_WATCH_CRT: /var/local/step/site.crt
+        volumes:
+            - smallstep:/var/local/step:ro
+            - ./proxy.yaml:/etc/nginx/yaml/proxy.yaml
+        networks:
+            local:
+            www:
+                ipv4_address: 192.168.1.130
+        ports:
+            - 80
+            - 443
+        depends_on:
+            - userdir

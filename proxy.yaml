@@ -1,0 +1,11 @@
+- server:
+      port: 443
+      domain:
+        subject: projects.shared.local
+      https: /var/local/step
+      log: /var/log/nginx
+      locations:
+          - type: proxy_pass
+            value: http://userdir
+            include: /etc/nginx/includes/default.proxy.conf
+      redirect: 80
