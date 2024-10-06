@@ -1,7 +1,7 @@
 - server:
       port: 443
       domain:
-        subject: projects.shared.local
+        subject: userdir.shared.local
       https: /var/local/step
       log: /var/log/nginx
       locations:

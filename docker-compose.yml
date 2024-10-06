@@ -3,22 +3,21 @@ networks:
         driver: bridge
     certauth:
         external: true
-        name: certauth_network
+        name: smallstep_certauth_network
     www:
         external: true
         name: local_net
-
 volumes:
     smallstep:
-        driver: bridge 
+        driver: local
 secrets:
     password:
         file: $CERTAUTH_SECRETS_PASSWORD
     provisioner_password:
         file: $CERTAUTH_SECRETS_PROVISIONER
 services:
-    certwatch:
-        image: proxymurder/smallstep:latest
+    certrenew:
+        image: proxymurder/certrenew:latest
         environment:
             STEP_INIT_DNS: shared
             STEP_CA_URL: https://certauth:5739
@@ -40,8 +39,8 @@ services:
         volumes:
             - /home/${USER}:/data
         environment:
-            PUID: $UID
-            PGID: $UID
+            PUID: $USERDIR_PUID
+            PGID: $USERDIR_PGID
             WEBDAV_USERNAME: $USERDIR_WEBDAV_USERNAME
             WEBDAV_PASSWORD: $USERDIR_WEBDAV_PASSWORD
             SERVER_NAMES: localhost
@@ -50,8 +49,10 @@ services:
         networks:
             - local
         restart: unless-stopped
+        depends_on:
+            - certrenew
     www:
-        image: proxymurder/servers:latest
+        image: proxymurder/server:latest
         environment:
             SERVER_YAML: /etc/nginx/yaml/proxy.yaml
             SERVER_WATCH_CRT: /var/local/step/site.crt
@@ -66,4 +67,5 @@ services:
             - 80
             - 443
         depends_on:
+            - certrenew
             - userdir
