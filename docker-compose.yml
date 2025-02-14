@@ -1,71 +1,41 @@
 networks:
-    local:
+    webdav_network:
         driver: bridge
-    certauth:
+    ipvlan:
         external: true
-        name: smallstep_certauth_network
-    www:
-        external: true
-        name: local_net
-volumes:
-    smallstep:
-        driver: local
-secrets:
-    password:
-        file: $CERTAUTH_SECRETS_PASSWORD
-    provisioner_password:
-        file: $CERTAUTH_SECRETS_PROVISIONER
+        name: ipvlan_network
 services:
-    certrenew:
-        image: proxymurder/certrenew:latest
-        environment:
-            STEP_INIT_DNS: shared
-            STEP_CA_URL: https://certauth:5739
-            STEP_FINGERPRINT: $CERTWATCH_STEP_FINGERPRINT
-            STEP_KID: $CERTWATCH_STEP_KID 
-            STEP_PASSWORD_FILE: /run/secrets/password
-            STEP_PROVISIONER_PASSWORD_FILE: /run/secrets/provisioner_password
-            STEP_ROOT: /var/local/step/root_ca.crt
-        volumes:
-            - smallstep:/var/local/step
-        secrets:
-            - password
-            - provisioner_password
-        networks:
-            - certauth
-        restart: unless-stopped
-    userdir:
+    webdav:
         image: dgraziotin/nginx-webdav-nononsense
         volumes:
-            - /home/${USER}:/data
+            - /home/$USER:/data
         environment:
-            PUID: $USERDIR_PUID
-            PGID: $USERDIR_PGID
-            WEBDAV_USERNAME: $USERDIR_WEBDAV_USERNAME
-            WEBDAV_PASSWORD: $USERDIR_WEBDAV_PASSWORD
+            PUID: $ADMIN_PUID
+            PGID: $ADMIN_PGID
+            WEBDAV_USERNAME: $ADMIN_WEBDAV_USERNAME
+            WEBDAV_PASSWORD: $ADMIN_WEBDAV_PASSWORD
             SERVER_NAMES: localhost
             TIMEOUTS_S: 1200
             CLIENT_MAX_BODY_SIZE: 1G
         networks:
-            - local
+            - webdav_network
         restart: unless-stopped
-        depends_on:
-            - certrenew
-    www:
-        image: proxymurder/server:latest
+    servers:
+        image: dqio/servers:latest
         environment:
-            SERVER_YAML: /etc/nginx/yaml/proxy.yaml
+            SERVER_YAML: /etc/nginx/yaml/servers.yaml
             SERVER_WATCH_CRT: /var/local/step/site.crt
         volumes:
-            - smallstep:/var/local/step:ro
-            - ./proxy.yaml:/etc/nginx/yaml/proxy.yaml
+            - ~/Docker/Services/step/tmp:/var/local/step:ro
+            - ./servers.yaml:/etc/nginx/yaml/servers.yaml
         networks:
-            local:
-            www:
-                ipv4_address: 192.168.1.130
+            webdav_network:
+            ipvlan:
+                ipv4_address: $SERVER_IPVLAN_ADDRESS
         ports:
             - 80
             - 443
         depends_on:
-            - certrenew
-            - userdir
+            - webdav
+        restart: unless-stopped
+
